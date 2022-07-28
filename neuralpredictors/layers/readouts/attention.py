@@ -6,7 +6,7 @@ from torch.nn import init
 from torch.nn.modules import ELU, BatchNorm2d, Conv2d, Module, Sequential
 from torch.nn.parameter import Parameter
 
-from .base import Readout, Reduction
+from .base import Readout
 
 
 class AttentionReadout(Readout):
@@ -72,10 +72,10 @@ class AttentionReadout(Readout):
             self.initialize_bias(mean_activity=mean_activity)
         self.initialize_attention()
 
-    def feature_l1(self, reduction: Reduction = "sum", average: Optional[bool] = None) -> torch.Tensor:
+    def feature_l1(self, reduction = "sum", average: Optional[bool] = None) -> torch.Tensor:
         return self.apply_reduction(self.features.abs(), reduction=reduction, average=average)
 
-    def regularizer(self, reduction: Reduction = "sum", average: Optional[bool] = None) -> torch.Tensor:
+    def regularizer(self, reduction = "sum", average: Optional[bool] = None) -> torch.Tensor:
         return self.feature_l1(reduction=reduction, average=average) * self.feature_reg_weight
 
     def forward(self, x: torch.Tensor, shift: Optional[Any] = None) -> torch.Tensor:
