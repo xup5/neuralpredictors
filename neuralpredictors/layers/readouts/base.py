@@ -1,12 +1,12 @@
 import warnings
-from typing import Any, Literal, Mapping, Optional
+from typing import Any, Mapping, Optional
 
 import torch
 from torch import nn as nn
 from torch.nn.modules import Module
 from torch.nn.parameter import Parameter
 
-Reduction = Literal["sum", "mean", None]
+# Reduction = Literal["sum", "mean", None]
 
 
 class ConfigurationError(Exception):
@@ -28,11 +28,11 @@ class Readout(Module):
     def initialize(self, *args: Any, **kwargs: Any) -> None:
         raise NotImplementedError("initialize is not implemented for ", self.__class__.__name__)
 
-    def regularizer(self, reduction: Reduction = "sum", average: Optional[bool] = None) -> torch.Tensor:
+    def regularizer(self, reduction = "sum", average: Optional[bool] = None) -> torch.Tensor:
         raise NotImplementedError("regularizer is not implemented for ", self.__class__.__name__)
 
     def apply_reduction(
-        self, x: torch.Tensor, reduction: Reduction = "mean", average: Optional[bool] = None
+        self, x: torch.Tensor, reduction = "mean", average: Optional[bool] = None
     ) -> torch.Tensor:
         """
         Applies a reduction on the output of the regularizer.
@@ -57,7 +57,7 @@ class Readout(Module):
                 f"Reduction method '{reduction}' is not recognized. Valid values are ['mean', 'sum', None]"
             )
 
-    def resolve_reduction_method(self, reduction: Reduction = "mean", average: Optional[bool] = None) -> Reduction:
+    def resolve_reduction_method(self, reduction = "mean", average: Optional[bool] = None):
         """
         Helper method which transforms the old and deprecated argument 'average' in the regularizer into
         the new argument 'reduction' (if average is not None). This is done in order to agree with the terminology in pytorch).
