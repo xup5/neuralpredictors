@@ -14,5 +14,7 @@ from .conv2d import (
     RotationEquivariant2dCore,
     SE2dCore,
     Stacked2dCore,
+    my_Stacked2dCore,
     TransferLearningCore,
+    MultiCore,
 )
