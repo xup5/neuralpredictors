@@ -352,6 +352,7 @@ class my_Stacked2dCore(Core, nn.Module):
         depth_separable=False,
         attention_conv=False,
         linear=False,
+        input_shape = None,
         output_shape = (28, 56),
     ):
         """
@@ -432,6 +433,7 @@ class my_Stacked2dCore(Core, nn.Module):
         self.batch_norm = batch_norm
         self.batch_norm_scale = batch_norm_scale
         self.independent_bn_bias = independent_bn_bias
+        self.input_shape = input_shape
         self.output_shape = output_shape
         if stack is None:
             self.stack = range(self.num_layers)
@@ -490,6 +492,9 @@ class my_Stacked2dCore(Core, nn.Module):
 
     def add_first_layer(self):
         layer = OrderedDict()
+        nn.functional.interpolate()
+        if self.input_shape is not None:
+            layer["resize_input"] = self.Interpolate(self.input_shape)
         layer["conv"] = nn.Conv2d(
             self.input_channels,
             self.hidden_channels,
@@ -532,6 +537,17 @@ class my_Stacked2dCore(Core, nn.Module):
             """
             super().__init__(**kwargs)
 
+    class Interpolate(nn.Module):
+        def __init__(self, size, mode='bilinear'):
+            super(Interpolate, self).__init__()
+            self.interp = nn.functional.interpolate
+            self.size = size
+            self.mode = mode
+            
+        def forward(self, x):
+            x = self.interp(x, size=self.size, mode=self.mode, align_corners=False)
+            return x
+
     def forward(self, input_):
         ret = []
         for l, feat in enumerate(self.features):
@@ -539,7 +555,7 @@ class my_Stacked2dCore(Core, nn.Module):
             input_ = feat(input_ if not do_skip else torch.cat(ret[-min(self.skip, l) :], dim=1))
             ret.append(input_)
 
-        return torch.cat([nn.functional.interpolate(ret[ind],self.output_shape) for ind in self.stack], dim=1)
+        return torch.cat([nn.functional.interpolate(ret[ind],self.output_shape,mode='bilinear') for ind in self.stack], dim=1)
 
     def laplace(self):
         """
