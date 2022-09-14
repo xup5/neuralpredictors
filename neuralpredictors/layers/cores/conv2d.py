@@ -354,6 +354,7 @@ class my_Stacked2dCore(Core, nn.Module):
         linear=False,
         input_shape = None,
         output_shape = (28, 56),
+        output_channels = None,
     ):
         """
         Args:
@@ -435,6 +436,11 @@ class my_Stacked2dCore(Core, nn.Module):
         self.independent_bn_bias = independent_bn_bias
         self.input_shape = input_shape
         self.output_shape = output_shape
+        if output_channels is not None:
+            self.output_channels = output_channels
+        else:
+            self.output_channels = hidden_channels
+
         if stack is None:
             self.stack = range(self.num_layers)
         else:
@@ -470,19 +476,21 @@ class my_Stacked2dCore(Core, nn.Module):
         self.bias_layer_cls = Bias2DLayer
         self.scale_layer_cls = Scale2DLayer
 
-    def add_bn_layer(self, layer):
+    def add_bn_layer(self, layer, channels=None):
+        if channels is None:
+            channels = self.hidden_channels
         if self.batch_norm:
             if self.independent_bn_bias:
-                layer["norm"] = self.batchnorm_layer_cls(self.hidden_channels, momentum=self.momentum)
+                layer["norm"] = self.batchnorm_layer_cls(channels, momentum=self.momentum)
             else:
                 layer["norm"] = self.batchnorm_layer_cls(
-                    self.hidden_channels, momentum=self.momentum, affine=self.bias and self.batch_norm_scale
+                    channels, momentum=self.momentum, affine=self.bias and self.batch_norm_scale
                 )
                 if self.bias:
                     if not self.batch_norm_scale:
-                        layer["bias"] = self.bias_layer_cls(self.hidden_channels)
+                        layer["bias"] = self.bias_layer_cls(channels)
                 elif self.batch_norm_scale:
-                    layer["scale"] = self.scale_layer_cls(self.hidden_channels)
+                    layer["scale"] = self.scale_layer_cls(channels)
 
     def add_activation(self, layer):
         if self.linear:
@@ -492,7 +500,6 @@ class my_Stacked2dCore(Core, nn.Module):
 
     def add_first_layer(self):
         layer = OrderedDict()
-        nn.functional.interpolate()
         if self.input_shape is not None:
             layer["resize_input"] = self.Interpolate(self.input_shape)
         layer["conv"] = nn.Conv2d(
@@ -502,7 +509,7 @@ class my_Stacked2dCore(Core, nn.Module):
             padding=self.input_kern // 2 if self.pad_input else 0,
             bias=self.bias and not self.batch_norm,
         )
-        self.add_bn_layer(layer)
+        self.add_bn_layer(layer, channels=self.hidden_channels)
         self.add_activation(layer)
         self.features.add_module("layer0", nn.Sequential(layer))
 
@@ -514,16 +521,29 @@ class my_Stacked2dCore(Core, nn.Module):
             layer = OrderedDict()
             if self.hidden_padding is None:
                 self.hidden_padding = ((self.hidden_kern[l - 1] - 1) * self.hidden_dilation + 1) // 2
-            layer[self.conv_layer_name] = self.ConvLayer(
-                in_channels=self.hidden_channels if not self.skip > 1 else min(self.skip, l) * self.hidden_channels,
-                out_channels=self.hidden_channels,
-                kernel_size=self.hidden_kern[l - 1],
-                stride=self.stride,
-                padding=self.hidden_padding,
-                dilation=self.hidden_dilation,
-                bias=self.bias,
-            )
-            self.add_bn_layer(layer)
+            if l == self.num_layers-1:
+                layer[self.conv_layer_name] = self.ConvLayer(
+                    in_channels=self.hidden_channels if not self.skip > 1 else min(self.skip, l) * self.hidden_channels,
+                    out_channels=self.output_channels,
+                    kernel_size=self.hidden_kern[l - 1],
+                    stride=self.stride,
+                    padding=self.hidden_padding,
+                    dilation=self.hidden_dilation,
+                    bias=self.bias,
+                )
+                self.add_bn_layer(layer,channels=self.output_channels)
+            else:
+                layer[self.conv_layer_name] = self.ConvLayer(
+                    in_channels=self.hidden_channels if not self.skip > 1 else min(self.skip, l) * self.hidden_channels,
+                    out_channels=self.hidden_channels,
+                    kernel_size=self.hidden_kern[l - 1],
+                    stride=self.stride,
+                    padding=self.hidden_padding,
+                    dilation=self.hidden_dilation,
+                    bias=self.bias,
+                )
+                self.add_bn_layer(layer,channels=self.hidden_channels)
+
             self.add_activation(layer)
             self.features.add_module("layer{}".format(l), nn.Sequential(layer))
 
@@ -539,7 +559,7 @@ class my_Stacked2dCore(Core, nn.Module):
 
     class Interpolate(nn.Module):
         def __init__(self, size, mode='bilinear'):
-            super(Interpolate, self).__init__()
+            super().__init__()
             self.interp = nn.functional.interpolate
             self.size = size
             self.mode = mode
@@ -580,7 +600,7 @@ class my_Stacked2dCore(Core, nn.Module):
 
     @property
     def outchannels(self):
-        return len(self.features) * self.hidden_channels
+        return (len(self.features)-1) * self.hidden_channels + self.output_channels
 
 
 class RotationEquivariant2dCore(Stacked2dCore, nn.Module):
