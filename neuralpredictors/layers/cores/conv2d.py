@@ -1,12 +1,6 @@
 import logging
 import warnings
-from collections import OrderedDict
-
-try:
-    from collections.abc import Iterable
-except ImportError:
-    from collections import Iterable
-
+from collections import Iterable, OrderedDict
 from functools import partial
 
 import torch
@@ -359,7 +353,7 @@ class my_Stacked2dCore(Core, nn.Module):
         attention_conv=False,
         linear=False,
         input_shape = None,
-        output_shape = (28, 56),
+        output_shape = None,
         output_channels = None,
     ):
         """
@@ -581,7 +575,10 @@ class my_Stacked2dCore(Core, nn.Module):
             input_ = feat(input_ if not do_skip else torch.cat(ret[-min(self.skip, l) :], dim=1))
             ret.append(input_)
 
-        return torch.cat([nn.functional.interpolate(ret[ind],self.output_shape,mode='bilinear') for ind in self.stack], dim=1)
+        if output_shape is not None:
+            return torch.cat([nn.functional.interpolate(ret[ind],self.output_shape,mode='bilinear') for ind in self.stack], dim=1)
+        else:
+            return torch.cat([ret[ind] for ind in self.stack], dim=1)
 
     def laplace(self):
         """
